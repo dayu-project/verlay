@@ -8,6 +8,8 @@
 
 ![映证 Verlay 产品界面](media/verlay-cover.png)
 
+![映证 Verlay Codex 写回结果](media/verlay-codex-result.png)
+
 ## 开始使用
 
 当前版本需要同时安装 Chrome 扩展和 VS Code 扩展：
