@@ -10,7 +10,7 @@
       "meta": "ZIP · v0.4.0",
       "action": "下载 Chrome 安装包",
       "fileName": "映证-Verlay-Chrome扩展-v0.4.0.zip",
-      "href": "https://github.com/daaaayuuuu/verlay/releases/download/v0.1.1/映证-Verlay-Chrome扩展-v0.4.0.zip"
+      "href": "https://github.com/daaaayuuuu/verlay/releases/download/v0.1.1/verlay-chrome-v0.4.0.zip"
     },
     {
       "id": "vscode",
@@ -19,7 +19,7 @@
       "meta": "VSIX · v0.1.1",
       "action": "下载 VS Code 安装包",
       "fileName": "映证-Verlay-VSCode扩展-v0.1.1-darwin-arm64.vsix",
-      "href": "https://github.com/daaaayuuuu/verlay/releases/download/v0.1.1/映证-Verlay-VSCode扩展-v0.1.1-darwin-arm64.vsix"
+      "href": "https://github.com/daaaayuuuu/verlay/releases/download/v0.1.1/verlay-vscode-v0.1.1-darwin-arm64.vsix"
     }
   ],
   "guides": [
