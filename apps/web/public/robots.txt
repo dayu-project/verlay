@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://daaaayuuuu.github.io/verlay/sitemap.xml

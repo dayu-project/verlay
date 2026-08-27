@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <title>映证插件设置</title>
+    <link href="options.css" rel="stylesheet">
+  </head>
+  <body>
+    <main class="card">
+      <header>
+        <img alt="" src="icons/icon-64.png">
+        <div>
+          <p class="eyebrow">VERLAY LOCAL CODEX BRIDGE</p>
+          <h1>连接本地 Codex 与 VS Code 项目</h1>
+          <p>无需公网服务。Codex 会直接修改 VS Code 当前打开的同一套源码。</p>
+        </div>
+      </header>
+
+      <section>
+        <div class="section-title">
+          <span class="step">1</span>
+          <div>
+            <h2>打开项目</h2>
+            <p>使用 VS Code 打开网页项目，并安装“映证 Verlay”VS Code 扩展。</p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <span class="step">2</span>
+          <div>
+            <h2>启动本机连接</h2>
+            <p>
+              点击 VS Code 底部的“启动映证”。第一次选择已运行的网页端口或项目
+              dev 脚本，以后会自动记住。
+            </p>
+          </div>
+        </div>
+        <p class="hint">
+          扩展会把当前 VS Code
+          项目作为唯一修改目录；不需要打开终端，也不需要安装 Airship CLI。
+        </p>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <span class="step">3</span>
+          <div>
+            <h2>开始可视化修改</h2>
+            <p>
+              连接成功后，打开本地网页并点击映证图标。面板收起时不会拦截网页点击。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <div class="footer">
+        <span id="message" role="status">本机连接地址：127.0.0.1:5175</span>
+        <button id="test-connection" type="button">测试本机连接</button>
+      </div>
+    </main>
+    <script src="options.js" type="module"></script>
+  </body>
+</html>

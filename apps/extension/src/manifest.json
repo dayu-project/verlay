@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "映证 Verlay",
+  "short_name": "映证",
+  "version": "0.4.0",
+  "description": "连接本机 Codex，在当前网页选择元素并修改 VS Code 正在打开的同一套源码。",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0sWkslWnI+Ur4GUGTXkHFM+zgIX8r7VUyG+8vijAWTJpZ/6jwBVwy0rUd0moCSWpXfdU1CelSjC6yenaR19zD315t7S9TAt4i78RRpk3xZ7xjYoNChdEl4SLFMHwcU6FrabidqJrKhF7lL12yuXLwgdtbmuZpmmwATq3nh3r0cRs9sTxeNaF3Fbr3vke2jpgix1yjloCZtvLxMiK/vFe/P536itv0WU0Iso4tKirONLGCok1lIeqMSge6qnRewQEpJJUFQ5R9RaE8+kpMM2h5V+MhvM8g93oHyeYtkt68rHP+ShdYELjHVwDqwUmI9VVcphi+M2vwms3ij26flueFQIDAQAB",
+  "action": {
+    "default_title": "打开或关闭映证画板",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "options_page": "options.html",
+  "permissions": ["activeTab", "scripting"],
+  "minimum_chrome_version": "116"
+}

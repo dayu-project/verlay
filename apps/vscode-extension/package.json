@@ -1,0 +1,85 @@
+{
+  "name": "verlay-vscode",
+  "displayName": "映证 Verlay",
+  "description": "一键启动映证，在 Chrome 中选择网页元素并通过 Codex 修改当前 VS Code 项目。",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "publisher": "verlay",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "verlay",
+    "codex",
+    "visual editor",
+    "映证"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.cjs",
+  "icon": "media/icon.png",
+  "contributes": {
+    "commands": [
+      {
+        "command": "verlay.start",
+        "title": "映证：启动"
+      },
+      {
+        "command": "verlay.stop",
+        "title": "映证：停止"
+      },
+      {
+        "command": "verlay.open",
+        "title": "映证：在 Chrome 中打开"
+      },
+      {
+        "command": "verlay.configure",
+        "title": "映证：重新选择网页启动方式"
+      }
+    ],
+    "configuration": {
+      "title": "映证 Verlay",
+      "properties": {
+        "verlay.editorPort": {
+          "type": "number",
+          "default": 5175,
+          "minimum": 1024,
+          "maximum": 65535,
+          "description": "Chrome 扩展连接的本机映证端口。"
+        },
+        "verlay.openInChrome": {
+          "type": "boolean",
+          "default": true,
+          "description": "启动后优先使用 Google Chrome 打开映证。"
+        },
+        "verlay.targetPort": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "可选：固定使用已经运行的本地网页端口；0 表示自动检测。"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "clean": "node scripts/clean.mjs",
+    "package": "node scripts/package.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.6.2",
+    "esbuild": "^0.28.2",
+    "typescript": "^6.0.3"
+  }
+}

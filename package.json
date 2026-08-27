@@ -1,0 +1,50 @@
+{
+  "name": "airship",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Airship — a visual editor for your running web app, driven by Claude Code, Codex or OpenCode",
+  "type": "module",
+  "scripts": {
+    "build": "turbo run build",
+    "build:extension": "pnpm --filter @airship/extension build",
+    "build:vscode-extension": "pnpm --filter ./apps/vscode-extension build",
+    "build:web": "turbo run build --filter=@airship/web",
+    "clean": "turbo run clean",
+    "commit": "czg",
+    "dev": "turbo run dev",
+    "dev:original-ui": "node ../原始UI/apps/cli/dist/index.js --target 4173 --port 5175 --cwd '../../项目二：AI Agent 中台/平台开发' --agent codex --safe",
+    "dev:new-ui": "node apps/cli/dist/index.js --target 4173 --port 5174 --cwd '../../项目二：AI Agent 中台/平台开发' --agent codex --safe",
+    "dev:preview": "node apps/cli/dist/index.js --target 4173 --port 5174 --cwd '../../项目二：AI Agent 中台/平台开发' --agent codex --safe",
+    "dev:web-preview": "python3 -m http.server 4173 --bind 127.0.0.1 --directory '../../项目二：AI Agent 中台/平台开发'",
+    "dev:pkgs": "turbo run dev --filter=./packages/*",
+    "dev:web": "turbo run dev --filter=@airship/web",
+    "fix": "ultracite fix",
+    "format": "biome format --write .",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "package:extension": "corepack pnpm --filter @airship/extension package",
+    "package:desktop-kit": "corepack pnpm --filter @airship/extension package && corepack pnpm --filter ./apps/vscode-extension package && node apps/vscode-extension/scripts/package-kit.mjs",
+    "package:vscode-extension": "corepack pnpm --filter ./apps/vscode-extension package",
+    "package:test-kit": "corepack pnpm --filter @airship/extension package && node apps/extension/scripts/package-test-kit.mjs",
+    "prepare": "husky",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.8",
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
+    "@types/node": "^26.2.0",
+    "czg": "^1.13.2",
+    "husky": "^9.1.7",
+    "tsup": "^8.5.0",
+    "turbo": "^2.10.9",
+    "typescript": "^6.0.3",
+    "ultracite": "^7.10.3",
+    "vitest": "^4.1.10"
+  },
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=22.13.0"
+  }
+}

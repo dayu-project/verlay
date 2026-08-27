@@ -1,0 +1,46 @@
+{
+  "heading": "让每次修改，都带着证据回来。",
+  "desc": "映证不只告诉你代码改了，还会说明它改在哪里、影响谁，以及真实页面是否已经生效。",
+  "chromeLabel": "verlay / verified apply",
+  "lines": [
+    [{ "kind": "heading", "text": "## 选中元素" }],
+    [
+      { "kind": "plain", "text": "button.cta-primary" },
+      { "kind": "dim", "text": "  ·  122 × 45" }
+    ],
+    [
+      { "kind": "plain", "text": "src/components/hero.tsx:24" },
+      { "kind": "dim", "text": "  ·  <CtaButton>" }
+    ],
+    [],
+    [{ "kind": "heading", "text": "## 待写回变更" }],
+    [
+      { "kind": "prop", "text": "  border-radius  " },
+      { "kind": "old", "text": "6px" },
+      { "kind": "dim", "text": "  →  " },
+      { "kind": "new", "text": "9999px" },
+      { "kind": "hint", "text": "     来自可视化面板" }
+    ],
+    [],
+    [{ "kind": "heading", "text": "## 影响范围" }],
+    [
+      { "kind": "plain", "text": "  当前按钮实例" },
+      { "kind": "dim", "text": "   /   1 个源文件" }
+    ],
+    [],
+    [{ "kind": "heading", "text": "## 验证结果" }],
+    [
+      { "kind": "new", "text": "  ✓ 样式已生效" },
+      { "kind": "dim", "text": "        computed: 9999px" }
+    ],
+    [
+      { "kind": "new", "text": "  ✓ 构建与 HMR 通过" },
+      { "kind": "dim", "text": "  0 个新增错误" }
+    ],
+    [],
+    [
+      { "kind": "dim", "text": "> " },
+      { "kind": "plain", "text": "已验证 · 1 个文件已修改" }
+    ]
+  ]
+}

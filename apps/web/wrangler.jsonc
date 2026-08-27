@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "airship-web",
+  // TanStack Start's build already emits a module worker: dist/server/server.js
+  // exports `default = { fetch(request) }`. No adapter, no preset — the same
+  // artifact `make web:build` produces locally is what runs here.
+  "main": "./dist/server/server.js",
+  "compatibility_date": "2025-01-01",
+  // Required, not optional: the server entry imports node:async_hooks and
+  // node:stream. Without this flag the worker fails to boot at deploy time.
+  "compatibility_flags": ["nodejs_compat"],
+  // Static assets are served before the worker runs, so hashed client bundles
+  // never pay for an SSR invocation; anything unmatched falls through to the
+  // fetch handler above.
+  "assets": {
+    "directory": "./dist/client"
+  },
+  "observability": {
+    "enabled": true
+  }
+  // No `env` block, deliberately. Cloudflare Workers Builds deploys this repo
+  // (see CONTRIBUTING.md § CI), and it runs a bare `wrangler deploy` on main and
+  // `wrangler versions upload` on every other branch — the preview URL comes from
+  // a version of this same worker, not a second one. Adding a named env would
+  // reintroduce the warning on unqualified deploys that the flag-less default
+  // relies on not hitting.
+}

@@ -1,0 +1,47 @@
+{
+  "heading": "开始使用",
+  "desc": "先安装 Google Chrome 与 VS Code 扩展，再从 VS Code 启动映证。",
+  "guideDesc": "按照以下步骤分别安装 Google Chrome 与 VS Code 扩展。",
+  "downloads": [
+    {
+      "id": "chrome",
+      "kind": "chrome",
+      "title": "Google Chrome 扩展",
+      "meta": "ZIP · v0.4.0",
+      "action": "下载 Chrome 安装包",
+      "fileName": "映证-Verlay-Chrome扩展-v0.4.0.zip",
+      "href": "https://github.com/daaaayuuuu/verlay/releases/download/v0.1.1/映证-Verlay-Chrome扩展-v0.4.0.zip"
+    },
+    {
+      "id": "vscode",
+      "kind": "vscode",
+      "title": "VS Code 扩展",
+      "meta": "VSIX · v0.1.1",
+      "action": "下载 VS Code 安装包",
+      "fileName": "映证-Verlay-VSCode扩展-v0.1.1-darwin-arm64.vsix",
+      "href": "https://github.com/daaaayuuuu/verlay/releases/download/v0.1.1/映证-Verlay-VSCode扩展-v0.1.1-darwin-arm64.vsix"
+    }
+  ],
+  "guides": [
+    {
+      "id": "chrome",
+      "title": "安装 Google Chrome 扩展",
+      "steps": [
+        "解压“映证-Verlay-Chrome扩展.zip”。",
+        "在 Chrome 地址栏打开 chrome://extensions/。",
+        "开启“开发者模式”，选择“加载已解压的扩展程序”。",
+        "选择刚刚解压得到的扩展文件夹。"
+      ]
+    },
+    {
+      "id": "vscode",
+      "title": "安装 VS Code 扩展",
+      "steps": [
+        "打开 VS Code 的扩展页面。",
+        "点击右上角“…”菜单，选择“从 VSIX 安装…”。",
+        "选择“映证-Verlay-VSCode扩展.vsix”。",
+        "安装完成后按提示重新加载 VS Code。"
+      ]
+    }
+  ]
+}

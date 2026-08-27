@@ -1,0 +1,155 @@
+name: Checks
+
+run-name: "Checks · ${{ github.head_ref || github.ref_name }}"
+
+# The PR gate. Mirrors `make preflight` locally, with one deliberate difference:
+# typecheck and test are scoped with `turbo --affected` against the PR base,
+# which locally there is no base to diff against.
+#
+# Drafts are skipped. `ready_for_review` is in the trigger list so marking a PR
+# ready re-runs this rather than leaving it permanently unchecked.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    # Windows is a first-class target — the CLI installs from npm onto it — but
+    # it went untested until a contributor reported that a fresh clone could not
+    # build there at all. Three separate path/line-ending bugs had shipped
+    # invisibly because every lane ran on Linux only. fail-fast is off so a
+    # Windows-only break still reports the Linux result, and vice versa.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # turbo --affected diffs against the PR base; it needs full history.
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-workspace
+
+      - name: Lint (Biome via Ultracite)
+        run: pnpm lint
+
+      # `shell: bash` on every multi-line block below: the default shell on
+      # windows-latest is pwsh, which shares none of this syntax — no `[ -n … ]`,
+      # no `if ! cmd`, and `${VAR}` is not env expansion. Git Bash ships on the
+      # Windows runner, so pinning the shell is enough; nothing needs rewriting.
+      - name: Typecheck + test (affected)
+        shell: bash
+        env:
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -n "${TURBO_SCM_BASE}" ]; then
+            pnpm turbo run typecheck test --affected
+          else
+            pnpm turbo run typecheck test
+          fi
+
+      # Unconditional and unscoped, unlike the step above. `--affected` is what
+      # let the Windows build bugs through: they lived in build scripts
+      # (check-css.mjs, vendor-assets.mjs, the gen.mjs front-matter readers), and
+      # a PR that touched none of the affected packages never ran them. This is
+      # the step that actually proves a clean checkout builds on both platforms.
+      - name: Build (every package)
+        run: pnpm build
+
+      # The ./airship wrapper is the documented way to run the dev CLI, and it
+      # is the only thing here with a per-platform implementation — a bash shim
+      # and a .cmd one. Nothing else exercises either, so a broken path or a
+      # CRLF shebang would reach contributors instead of CI.
+      #
+      # --skip-build keeps this a pure shim test — path resolution, argv
+      # passthrough, exit code — with no build time, since the step above
+      # already produced dist/.
+      - name: Dev CLI wrapper (posix)
+        if: matrix.os != 'windows-latest'
+        run: ./airship --skip-build --version
+
+      # shell: cmd because the runner's default on Windows is pwsh, and cmd.exe
+      # is what airship.cmd exists for.
+      - name: Dev CLI wrapper (windows)
+        if: matrix.os == 'windows-latest'
+        shell: cmd
+        run: airship.cmd --skip-build --version
+
+      # apps/cli/README.md is generated from the root README.md, and it is what
+      # npmjs.com renders for @airshiplabs/cli. Committed rather than built on
+      # demand so a clean checkout can publish without running the generator.
+      #
+      # Linux only, here and below: both of these check that a COMMITTED
+      # generated file matches what the generator emits. That is a property of
+      # the repo, not of the platform, so running it twice doubles the runtime
+      # and the flake surface for no extra signal.
+      # CONTROLS.md and the short table in README.md are generated from the
+      # overlay's command catalog. Before the README check, because that one
+      # copies the root README.md that this one writes into.
+      - name: Controls reference is not stale
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          if ! node --experimental-strip-types --no-warnings=ExperimentalWarning scripts/gen-controls.mjs --check; then
+            echo "::error file=CONTROLS.md::The controls reference is stale. Run 'make controls' and commit the result."
+            exit 1
+          fi
+
+      - name: README is not stale
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          if ! node scripts/sync-readme.mjs --check; then
+            echo "::error file=apps/cli/README.md::The CLI README is stale. Run 'make readme' and commit the result."
+            exit 1
+          fi
+
+      # apps/web/src/routeTree.gen.ts is generated but committed, so it drifts.
+      # Regenerated by BUILDING, not by `tsr generate`: two things write this
+      # file and they disagree — the router CLI emits the tree alone, while the
+      # Start Vite plugin appends the `declare module` block that registers the
+      # router type for SSR. The build's output is the committed one. The build
+      # step above already wrote it; this only reads the result.
+      - name: Route tree is not stale
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          if ! git diff --quiet -- apps/web/src/routeTree.gen.ts; then
+            git diff --stat -- apps/web/src/routeTree.gen.ts
+            echo "::error file=apps/web/src/routeTree.gen.ts::The route tree is stale. Run 'make web:build' and commit the result."
+            exit 1
+          fi
+
+      # Last, because it deletes what everything above produced. Every workspace
+      # `clean` was `rm -rf` until this lane existed to catch it — a command that
+      # does not exist on Windows, so `pnpm clean` failed in all eleven packages.
+      - name: Clean (removes what the build produced)
+        run: pnpm clean
+
+  commitlint:
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-workspace
+
+      # .husky/commit-msg runs the same rule, but a hook is only ever a
+      # courtesy — `--no-verify` skips it. This is the copy that counts.
+      - name: Conventional Commits
+        run: |
+          pnpm commitlint \
+            --from "${{ github.event.pull_request.base.sha }}" \
+            --to "${{ github.event.pull_request.head.sha }}" \
+            --verbose

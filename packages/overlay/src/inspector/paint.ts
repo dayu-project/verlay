@@ -1,0 +1,290 @@
+import { cls, el } from "../dom";
+import { icon } from "../icons";
+import { createColorRow } from "./controls/color-picker";
+import {
+  canEditGradient,
+  openGradientEditor,
+} from "./controls/gradient-editor";
+import { createNumField, type NumHandle } from "./controls/num-field";
+import { createRowList, type RowListHandle } from "./controls/row-list";
+import type { Gestures, OnChange } from "./controls/types";
+import {
+  blankShadow,
+  type Fill,
+  formatShadowList,
+  parseShadowList,
+  type Shadow,
+} from "./css-value";
+
+/*
+ * The row bodies for Fill, Stroke and Effects.
+ *
+ * `row-list.ts` owns the list mechanics (eye, minus, add); this owns what sits
+ * inside a row. Kept out of `panel.ts` because the panel is already 1,500 lines
+ * and none of this needs the panel's state — a row is a pure function of its
+ * value and a callback.
+ *
+ * The `[swatch][hex][alpha]` row that used to live here is now
+ * `controls/color-picker.ts`, shared with the Text → Colour descriptor that had
+ * grown its own near-copy.
+ */
+
+// -- Effects -----------------------------------------------------------------
+
+/**
+ * One shadow row: X / Y / Blur / Spread and a colour.
+ *
+ * Shadow kind is intentionally not exposed here. New shadows are outer shadows
+ * (`blankShadow()` defaults to `inset: false`), while an existing inner shadow
+ * is preserved until the user edits or removes it.
+ */
+export function shadowRow(
+  shadow: Shadow,
+  onEdit: (next: Shadow) => void,
+  gestures?: Gestures,
+  onDispose?: (fn: () => void) => void,
+  node?: Element | null
+): HTMLElement {
+  /*
+   * The four numbers.
+   *
+   * X, Y and Spread take **no minimum**: a shadow offset up and to the left is
+   * the ordinary case, and a negative spread — a shadow smaller than the box it
+   * falls from — is a real technique for a tight inner rim. Blur is the only one
+   * of the four that cannot be negative.
+   *
+   * Each of these scrubs, which is the point of routing them through
+   * `createNumField`. They sit inside `createRowList`, whose `replace()`
+   * deliberately does not re-render, so a drag re-serialises the whole
+   * `box-shadow` on every pointermove — the same thing typing already did, only
+   * faster — and `gestures` collapses the sweep into one undo step instead of
+   * two hundred.
+   */
+  const nums: NumHandle[] = [];
+  const num = (
+    glyph: string,
+    tip: string,
+    key: string,
+    value: string,
+    signed: boolean,
+    set: (v: string) => Shadow
+  ): HTMLElement => {
+    const handle = createNumField(
+      {
+        fieldKey: key,
+        glyph,
+        label: tip,
+        min: signed ? undefined : 0,
+        unit: "px",
+        units: ["em", "rem"],
+      },
+      value,
+      (css) => onEdit(set(css)),
+      gestures
+    );
+    nums.push(handle);
+    return handle.element;
+  };
+
+  /*
+   * Two pairs, not four fields.
+   *
+   * The offsets belong together and so do blur and spread, but the reason this
+   * is DOM rather than a track list is arithmetic: with four equal columns and a
+   * minimum width, the count goes 4, 3, 2 as the dock narrows, and the 3-wide
+   * band — X, Y and Blur on one line, Spread orphaned beneath them — covers the
+   * default dock width exactly. There is no minimum that skips it. Pairing them
+   * makes the *pair* the thing that wraps, so the row is four across or a 2x2
+   * and never 3+1.
+   */
+  const pair = (...fields: HTMLElement[]): HTMLElement =>
+    el("div", { class: cls("effect-pair") }, fields);
+
+  /*
+   * The row's header line, and the reason it is a container rather than just
+   * the button.
+   *
+   * `createRowList` hands this row its eye and its minus, and until now they
+   * sat *beside* the whole four-line block, centred — which put them 57px down
+   * a 114px column, in the 2px gutter between the offsets and the blur. Here
+   * they land on the line that names the layer, which is the line they act on.
+   * A container because `.effect-kind` is a button and buttons do not nest.
+   */
+  // The list places its remove action here. There is no extra type row.
+  const head = el("div", { class: cls("effect-head") });
+
+  const row = el("div", { class: cls("effect-row") }, [
+    head,
+    el("div", { class: cls("effect-nums") }, [
+      pair(
+        num("X", "Offset X", "shadow-x", shadow.x, true, (v) => ({
+          ...shadow,
+          x: v,
+        })),
+        num("Y", "Offset Y", "shadow-y", shadow.y, true, (v) => ({
+          ...shadow,
+          y: v,
+        }))
+      ),
+      pair(
+        num("模糊", "Blur", "shadow-blur", shadow.blur, false, (v) => ({
+          ...shadow,
+          blur: v,
+        })),
+        num("扩展", "Spread", "shadow-spread", shadow.spread, true, (v) => ({
+          ...shadow,
+          spread: v,
+        }))
+      ),
+    ]),
+    createColorRow({
+      gestures,
+      node,
+      onChange: (color) => onEdit({ ...shadow, color }),
+      tip: "Shadow colour",
+      value: shadow.color,
+    }).element,
+  ]);
+  // The list re-renders its rows on add, remove and eye-toggle, dropping the
+  // old markup — and with it four dnd-kit grips that would otherwise stay in
+  // the shared registry answering queries from a detached element.
+  onDispose?.(() => {
+    for (const handle of nums) {
+      handle.destroy();
+    }
+  });
+  return row;
+}
+
+/** The shadow list, ready to drop into a section body. */
+export function createShadowList(
+  css: string,
+  onChange: OnChange,
+  gestures?: Gestures,
+  node?: Element | null
+): RowListHandle<Shadow> {
+  return createRowList<Shadow>(
+    {
+      actionSlot: (content) =>
+        content.querySelector<HTMLElement>(`.${cls("effect-head")}`),
+      blank: () => blankShadow(),
+      cssProperty: "box-shadow",
+      enabled: (r) => r.enabled,
+      hideToggle: false,
+      parse: parseShadowList,
+      render: (row, onEdit, onDispose) =>
+        shadowRow(row, onEdit, gestures, onDispose, node),
+      serialize: formatShadowList,
+      setEnabled: (r, on) => ({ ...r, enabled: on }),
+    },
+    css,
+    onChange
+  );
+}
+
+// -- Fill layers -------------------------------------------------------------
+
+/**
+ * A gradient or image fill layer.
+ *
+ * The raw CSS field is still the authority, and still the reason this row can
+ * express things a picker cannot. What changed is that the glyph now *opens* a
+ * visual editor when the value is a gradient the parser fully understands —
+ * additive, so a gradient it declines to model still round-trips through the
+ * text exactly as before.
+ */
+export function fillLayerRow(
+  row: Fill,
+  onEdit: (next: Fill) => void,
+  gestures?: Gestures,
+  node?: Element | null
+): HTMLElement {
+  const input = el("input", {
+    "aria-label": "Fill layer",
+    class: cls("ctl-input"),
+    type: "text",
+    value: row.value,
+  }) as HTMLInputElement;
+
+  const wrap = el("div", { class: cls("ctl-num") }, [input]);
+
+  // Actually a button when the gradient is editable, rather than a span with a
+  // click listener bolted on: it opens the visual editor, and as a span it was
+  // unreachable by keyboard and announced as nothing. A span for an image fill,
+  // where the glyph is identity rather than an affordance and there is nothing
+  // to open.
+  let glyph: HTMLElement | null = null;
+
+  const openEditor = (): void => {
+    if (!(glyph && canEditGradient(input.value))) {
+      return;
+    }
+    openGradientEditor(glyph, {
+      gestures,
+      node,
+      onChange: (css) => {
+        // Keep the text field in step: it is the same value, and leaving it
+        // stale would make the two disagree about what the fill is.
+        input.value = css;
+        onEdit({ ...row, kind: "gradient", value: css });
+      },
+      value: input.value,
+    });
+  };
+
+  /*
+   * The row repaints its own glyph and tooltip.
+   *
+   * `createRowList.replace` commits without re-rendering, and re-rendering here
+   * would be wrong anyway — it would tear the field out from under the caret on
+   * every keystroke. So the one thing that can change identity, gradient versus
+   * image, updates in place.
+   */
+  const setKind = (kind: Fill["kind"]): void => {
+    const image = kind === "image";
+    const editable = !image && canEditGradient(input.value);
+    const base = `${cls("ctl-glyph")} ${cls("ctl-glyph-static")}`;
+    const next = editable
+      ? el("button", {
+          "aria-label": "Edit gradient",
+          class: `${base} ${cls("ctl-glyph-action")}`,
+          onClick: openEditor,
+          type: "button",
+        })
+      : el("span", { class: base });
+    next.append(icon(image ? "fill-image" : "fill-gradient", "sm"));
+    if (glyph) {
+      glyph.replaceWith(next);
+    } else {
+      wrap.prepend(next);
+    }
+    glyph = next;
+    if (image) {
+      wrap.dataset.tip = "Image fill, from a CSS url()";
+    } else {
+      wrap.dataset.tip = editable
+        ? "Gradient fill. Click the swatch to edit"
+        : "Gradient fill, shown as authored";
+    }
+  };
+  setKind(row.kind);
+
+  const commit = (): void => {
+    const value = input.value.trim();
+    if (value) {
+      const kind: Fill["kind"] = value.startsWith("url(")
+        ? "image"
+        : "gradient";
+      onEdit({ ...row, kind, value });
+      setKind(kind);
+    }
+  };
+  input.addEventListener("blur", commit);
+  input.addEventListener("keydown", (e) => {
+    if ((e as KeyboardEvent).key === "Enter") {
+      commit();
+      input.blur();
+    }
+  });
+  return wrap;
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@airship/extension",
+  "version": "0.4.0",
+  "private": true,
+  "description": "映证 Verlay Chrome 扩展本机 Codex 桥接版",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "clean": "node ../../scripts/clean.mjs dist",
+    "package": "corepack pnpm --filter @airship/overlay build && node scripts/build.mjs && node scripts/package.mjs",
+    "test": "node --test scripts/local-bridge.test.mjs && node scripts/validate.mjs"
+  }
+}

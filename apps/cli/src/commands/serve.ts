@@ -1,0 +1,440 @@
+/**
+ * `airship` — the default command. Launch the editor against a dev server.
+ *
+ * Everything the old single-file CLI did, plus the settings chain, port
+ * detection and dev-server supervision. The order below is deliberate: resolve
+ * and validate everything that can fail cheaply *before* starting a child
+ * process or binding a port, so a typo never leaves a dev server orphaned.
+ */
+
+import {
+  type AgentKind,
+  type AirshipSurface,
+  type CodexSettings,
+  checkAuth,
+  type Effort,
+  type OpencodeSettings,
+  startServer,
+} from "@airship/server";
+import { defineCommand } from "citty";
+import {
+  argsFor,
+  assertKnownFlags,
+  GLOBAL_FLAGS,
+  requireAmount,
+  requireEnum,
+  requireHost,
+  requireInteger,
+  requireModelRef,
+  requirePort,
+} from "../lib/args";
+import { parseCodexConfig, readOpencodeConfig } from "../lib/backends";
+import { launchBanner, warnBackendLimits } from "../lib/banner";
+import { asBoolean, asList, asString, type Settings } from "../lib/config";
+import {
+  candidatePorts,
+  detectTarget,
+  firstFreePort,
+  isListening,
+} from "../lib/detect";
+import { CliError, EXIT } from "../lib/errors";
+import { type DevServer, openInBrowser, startDevServer } from "../lib/exec";
+import { resolveSettings } from "../lib/settings";
+import { note, out, setColorEnabled, shouldColor } from "../lib/terminal";
+
+export const SERVE_FLAGS: readonly string[] = [
+  "target",
+  "port",
+  "host",
+  "allowed-hosts",
+  "cwd",
+  "mode",
+  "exec",
+  "open",
+  "keep-csp",
+  "verify",
+  "verify-command",
+  "verify-timeout",
+  "agent",
+  "model",
+  "effort",
+  "max-turns",
+  "max-budget",
+  "commit",
+  "safe",
+  "claude-model",
+  "codex-model",
+  "opencode-model",
+  "codex-path",
+  "codex-config",
+  "opencode-path",
+  "opencode-url",
+  "opencode-agent",
+  "opencode-config",
+  ...GLOBAL_FLAGS,
+];
+
+export interface ServeOptions {
+  agent: AgentKind;
+  allowedHosts: readonly string[];
+  autoCommit: boolean;
+  codex: CodexSettings;
+  cwd: string;
+  effort?: Effort;
+  exec?: string;
+  host?: string;
+  json: boolean;
+  keepCsp: boolean;
+  maxBudgetUsd?: number;
+  maxTurns?: number;
+  model?: string;
+  /** Per-backend model defaults, each already falling back to `model`. */
+  models: Partial<Record<AgentKind, string>>;
+  open: boolean;
+  opencode: OpencodeSettings;
+  port?: number;
+  quiet: boolean;
+  safe: boolean;
+  surface: AirshipSurface;
+  target?: number;
+  verify: boolean;
+  verifyCommand?: string;
+  verifyTimeoutMs: number;
+}
+
+/**
+ * Merged settings → validated options.
+ *
+ * Exported for the tests: this is where every "invalid --x" message is decided,
+ * and none of it was reachable when it lived inside `main`.
+ */
+export function toServeOptions(settings: Settings, cwd: string): ServeOptions {
+  const agent = asString(settings, "agent");
+  const effort = asString(settings, "effort");
+  const mode = asString(settings, "mode");
+  const target = asString(settings, "target");
+  const port = asString(settings, "port");
+  const turns = asString(settings, "max-turns");
+  const budget = asString(settings, "max-budget");
+  const codexConfig = parseCodexConfig(asList(settings, "codex-config"));
+  const model = asString(settings, "model");
+  const opencodeModel = asString(settings, "opencode-model");
+  const host = asString(settings, "host");
+  const verifyTimeout = asString(settings, "verify-timeout");
+
+  return {
+    agent: (agent ? requireEnum(agent, "agent") : "claude") as AgentKind,
+    // Split locally: the env layer has no repeatable form, so
+    // AIRSHIP_ALLOWED_HOSTS=a,b arrives as one string.
+    allowedHosts: asList(settings, "allowed-hosts").flatMap((entry) =>
+      entry
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .map((part) => requireHost(part, "allowed-hosts"))
+    ),
+    autoCommit: asBoolean(settings, "commit"),
+    codex: {
+      codexPath: asString(settings, "codex-path"),
+      config: Object.keys(codexConfig).length > 0 ? codexConfig : undefined,
+    } satisfies CodexSettings,
+    cwd,
+    effort: effort ? (requireEnum(effort, "effort") as Effort) : undefined,
+    exec: asString(settings, "exec"),
+    host: host ? requireHost(host, "host") : undefined,
+    json: asBoolean(settings, "json"),
+    keepCsp: asBoolean(settings, "keep-csp"),
+    maxBudgetUsd: budget ? requireAmount(budget, "max-budget") : undefined,
+    maxTurns: turns ? requireInteger(turns, "max-turns") : undefined,
+    model,
+    // The fallback collapses here rather than in the server so there is one
+    // place that decides it, and one place the tests have to cover. Only the
+    // opencode entry is validated: that flag names its backend, so a bare id
+    // is unambiguously wrong. `model` reaches all three and cannot be.
+    models: {
+      claude: asString(settings, "claude-model") ?? model,
+      codex: asString(settings, "codex-model") ?? model,
+      opencode: opencodeModel
+        ? requireModelRef(opencodeModel, "opencode-model")
+        : model,
+    },
+    open: asBoolean(settings, "open"),
+    opencode: {
+      agent: asString(settings, "opencode-agent"),
+      config: readOpencodeConfig(asString(settings, "opencode-config")),
+      opencodePath: asString(settings, "opencode-path"),
+      url: asString(settings, "opencode-url"),
+    } satisfies OpencodeSettings,
+    port: port ? requirePort(port, "port") : undefined,
+    quiet: asBoolean(settings, "quiet"),
+    safe: asBoolean(settings, "safe"),
+    surface: (mode ? requireEnum(mode, "mode") : "canvas") as AirshipSurface,
+    target: target ? requirePort(target, "target") : undefined,
+    verify:
+      settings.verify === undefined ? true : asBoolean(settings, "verify"),
+    verifyCommand: asString(settings, "verify-command"),
+    verifyTimeoutMs: verifyTimeout
+      ? requireInteger(verifyTimeout, "verify-timeout") * 1000
+      : 120_000,
+  };
+}
+
+/**
+ * Settle on a target port.
+ *
+ * With `--exec` we are about to start the server ourselves, so a port nothing
+ * is listening on yet is exactly right. Without it, the port has to be live —
+ * proxying a dead port produces a 502 on the first request and looks like
+ * airship is broken rather than like the dev server is not running.
+ */
+async function resolveTarget(opts: ServeOptions): Promise<number> {
+  if (opts.target !== undefined) {
+    if (opts.exec) {
+      await assertFree(opts.target);
+      return opts.target;
+    }
+    if (!(await isListening(opts.target))) {
+      throw new CliError(`Nothing is listening on port ${opts.target}`, {
+        hint: 'Start your dev server first, or let airship start it with --exec "pnpm dev".',
+      });
+    }
+    return opts.target;
+  }
+
+  if (opts.exec) {
+    // Deliberately *not* `detectTarget`: that returns the first candidate
+    // already answering, which is the right answer when we are attaching to a
+    // running server and the wrong one when we are about to start it. Some
+    // other project's dev server on 3000 would outrank the port this project's
+    // own dev script declares, and we would proxy the wrong app.
+    const [first] = candidatePorts(opts.cwd);
+    if (!first) {
+      throw new CliError("Could not work out your dev server's port", {
+        hint: "Pass it with --target <port>.",
+      });
+    }
+    await assertFree(first.port);
+    if (!opts.quiet) {
+      note(`  → expecting port ${first.port} — ${first.reason}\n`);
+    }
+    return first.port;
+  }
+
+  const detected = await detectTarget(opts.cwd);
+  if (!detected) {
+    throw new CliError("Could not work out your dev server's port", {
+      hint: "Pass it with --target <port>.",
+    });
+  }
+  if (!detected.listening) {
+    throw new CliError(
+      `Nothing is listening on port ${detected.port} (${detected.reason})`,
+      {
+        hint: 'Start your dev server first, pass --target <port>, or let airship start it with --exec "pnpm dev".',
+      }
+    );
+  }
+  if (!opts.quiet) {
+    note(`  → using port ${detected.port} — ${detected.reason}\n`);
+  }
+  return detected.port;
+}
+
+/**
+ * Refuse to `--exec` onto an occupied port.
+ *
+ * Without this the readiness poll sees whatever is already there, declares the
+ * dev server up, and proxies someone else's app while the one we spawned is
+ * failing to bind behind it.
+ */
+async function assertFree(port: number): Promise<void> {
+  if (await isListening(port)) {
+    throw new CliError(`Something is already listening on port ${port}`, {
+      hint: "Stop it, or drop --exec to attach to it instead.",
+    });
+  }
+}
+
+/**
+ * Turn a failure to bind the overlay's port into something actionable.
+ *
+ * EACCES is the Windows-specific one: Hyper-V, WSL2 and Docker Desktop reserve
+ * whole ranges of dynamic ports, and a port inside one accepts no connection
+ * yet refuses to be bound — so it looks free right up until it isn't.
+ */
+function asBindError(err: unknown, port: number, host: string): unknown {
+  const code = (err as NodeJS.ErrnoException | null)?.code;
+  if (code === "EADDRINUSE") {
+    return new CliError(`Port ${port} is already in use`, {
+      hint: "Pass --port with a free one.",
+    });
+  }
+  if (code === "EADDRNOTAVAIL") {
+    return new CliError(`No interface on this machine has address ${host}`, {
+      hint: "Check --host — it must be one of this machine's addresses, or 0.0.0.0 for all of them.",
+    });
+  }
+  if (code === "EACCES") {
+    return new CliError(`Not allowed to bind port ${port}`, {
+      hint: "On Windows this port may sit in a reserved range (see `netsh interface ipv4 show excludedportrange tcp`). Pass --port with one outside it.",
+    });
+  }
+  return err;
+}
+
+export const serve = defineCommand({
+  args: argsFor(SERVE_FLAGS),
+  meta: {
+    description: "Launch the visual editor against your dev server.",
+    name: "airship",
+  },
+  run: async ({ args, rawArgs }) => {
+    assertKnownFlags(rawArgs, SERVE_FLAGS);
+    const { cwd, settings } = resolveSettings({
+      args,
+      names: SERVE_FLAGS,
+      rawArgs,
+    });
+    const opts = toServeOptions(settings, cwd);
+    setColorEnabled(shouldColor({ json: opts.json }));
+
+    const targetPort = await resolveTarget(opts);
+    // Default to target + 1, but step past anything already bound so a second
+    // airship in another project does not fail on EADDRINUSE. Probed on the
+    // bind host: a port free on ::1 can still be taken on 127.0.0.1.
+    const bindHost = opts.host ?? "127.0.0.1";
+    const port = opts.port ?? (await firstFreePort(targetPort + 1, bindHost));
+
+    // Attaching to a remote server needs no local binary, so the PATH half of
+    // `checkAuth` would be a false alarm there.
+    if (!(opts.agent === "opencode" && opts.opencode.url)) {
+      const auth = await checkAuth(opts.agent);
+      if (!auth.ok) {
+        note(`\n  ⚠ ${auth.reason}\n`);
+      }
+    }
+
+    warnBackendLimits({
+      agent: opts.agent,
+      cwd: opts.cwd,
+      effort: opts.effort,
+      maxBudgetUsd: opts.maxBudgetUsd,
+      maxTurns: opts.maxTurns,
+      // The resolved per-backend map, not the raw `--model`. The opencode
+      // warning reads `models.opencode`, so passing only `model` left it reading
+      // `undefined` and the warning could never fire.
+      models: opts.models,
+    });
+
+    let dev: DevServer | undefined;
+    if (opts.exec) {
+      dev = await startDevServer({
+        command: opts.exec,
+        cwd: opts.cwd,
+        port: targetPort,
+        quiet: opts.quiet,
+      });
+    }
+
+    let server: Awaited<ReturnType<typeof startServer>>;
+    try {
+      server = await startServer({
+        agent: opts.agent,
+        allowedHosts: opts.allowedHosts,
+        autoCommit: opts.autoCommit,
+        codex: opts.codex,
+        cwd: opts.cwd,
+        effort: opts.effort,
+        host: opts.host,
+        keepCsp: opts.keepCsp,
+        maxBudgetUsd: opts.maxBudgetUsd,
+        maxTurns: opts.maxTurns,
+        model: opts.model,
+        models: opts.models,
+        opencode: opts.opencode,
+        port,
+        safe: opts.safe,
+        surface: opts.surface,
+        targetPort,
+        verify: opts.verify,
+        verifyCommand: opts.verifyCommand,
+        verifyTimeoutMs: opts.verifyTimeoutMs,
+      });
+    } catch (err) {
+      // We started the dev server; if the proxy cannot come up it is ours to
+      // clean up, or the user is left with a stray process holding the port.
+      await dev?.stop();
+      throw asBindError(err, port, bindHost);
+    }
+
+    if (opts.json) {
+      out(
+        `${JSON.stringify(
+          {
+            agent: opts.agent,
+            cwd: opts.cwd,
+            host: bindHost,
+            mode: opts.surface,
+            // The resolved model for the backend that will run, so a scripted
+            // caller can read back which of the four model flags won rather
+            // than re-deriving the precedence itself.
+            model: opts.models?.[opts.agent],
+            port,
+            safe: opts.safe,
+            targetPort,
+            url: server.url,
+          },
+          null,
+          2
+        )}\n`
+      );
+    } else if (!opts.quiet) {
+      note(
+        launchBanner({
+          agent: opts.agent,
+          cwd: opts.cwd,
+          host: bindHost,
+          model: opts.models?.[opts.agent],
+          safe: opts.safe,
+          surface: opts.surface,
+          targetPort,
+          url: server.url,
+        })
+      );
+    }
+
+    if (opts.open) {
+      openInBrowser(server.url);
+    }
+
+    // A second Ctrl-C is an escape hatch: if a socket somehow outlives
+    // `server.close()`, the user should never be stuck holding a dead terminal.
+    let stopping = false;
+    const shutdown = async (): Promise<void> => {
+      if (stopping) {
+        process.exit(EXIT.interrupted);
+      }
+      stopping = true;
+      // The dev server goes first: it is the one that holds the port, and
+      // closing the proxy under it would strand in-flight requests.
+      await dev?.stop();
+      await server.close();
+      process.exit(0);
+    };
+    // Signal handlers cannot await. If `shutdown()` itself rejects we still have
+    // to leave the terminal in a usable state, so force the exit rather than
+    // surfacing an unhandled rejection and hanging on the open server.
+    const onSignal = () => {
+      shutdown().catch(() => process.exit(EXIT.fail));
+    };
+    process.on("SIGINT", onSignal);
+    process.on("SIGTERM", onSignal);
+    // Windows never delivers SIGTERM — registering it is legal, it just never
+    // fires — so without SIGBREAK the only clean exit there is Ctrl-C. Ctrl-Break
+    // and a console close would otherwise skip shutdown entirely and strand the
+    // `opencode serve` child and any dev server we started.
+    if (process.platform === "win32") {
+      process.on("SIGBREAK", onSignal);
+    }
+  },
+});

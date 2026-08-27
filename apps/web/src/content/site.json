@@ -1,0 +1,13 @@
+{
+  "name": "映证 Verlay",
+  "tagline": "所见可改，所改可证。",
+  "description": "映证 Verlay 让你直接在本地网页上点选和修改 UI，将结构化变更安全写回源码，并自动验证结果。",
+  "origin": "https://daaaayuuuu.github.io/verlay/",
+  "installCommand": "npx verlay --target 3000",
+  "nodeVersion": "22.13",
+  "links": {
+    "overview": "#top",
+    "getStarted": "#get-started",
+    "faq": "#faq"
+  }
+}

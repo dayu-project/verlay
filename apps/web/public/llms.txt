@@ -1,0 +1,16 @@
+# 映证 Verlay
+
+> 所见可改，所改可证。
+
+映证 Verlay 是一款运行在本机的 Web UI 可视化修改与源码验收工具。
+用户可以在 localhost 页面中点选元素，调整间距、字体、填充、描边、圆角和阴影，
+确认影响范围后由 Codex 将变更写回当前项目。
+
+## Verified Apply
+
+每次写回都会复验真实 Computed Style、构建/HMR 状态、新增控制台错误和声明的修改范围。
+验证失败时，只回滚本次工具产生的 Patch。
+
+## 快速开始
+
+`npx verlay --target 3000`
