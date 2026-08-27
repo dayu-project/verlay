@@ -27,6 +27,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:web
         env:
+          TURBO_ENV_MODE: loose
           VERLAY_BASE_PATH: /verlay/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
