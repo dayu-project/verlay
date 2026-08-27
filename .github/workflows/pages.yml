@@ -25,7 +25,7 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @airship/web build
+      - run: pnpm build:web
         env:
           VERLAY_BASE_PATH: /verlay/
       - uses: actions/configure-pages@v5
