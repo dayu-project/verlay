@@ -4,7 +4,7 @@
 
 整个过程基于本地开发环境运行，不需要迁移项目，也不需要维护一份脱离源码的在线副本。从页面点选、修改预览到代码写回和结果验证，都在同一条工作流中完成。
 
-[产品介绍页](https://daaaayuuuu.github.io/verlay/) · [下载安装包](https://github.com/daaaayuuuu/verlay/releases/latest)
+[产品介绍页](https://dayu-project.github.io/verlay/) · [下载安装包](https://github.com/dayu-project/verlay/releases/latest)
 
 ![映证 Verlay 产品界面](media/verlay-cover.png)
 
@@ -14,7 +14,7 @@
 
 当前版本需要同时安装 Chrome 扩展和 VS Code 扩展：
 
-1. 从 [Releases](https://github.com/daaaayuuuu/verlay/releases/latest) 下载两个安装包。
+1. 从 [Releases](https://github.com/dayu-project/verlay/releases/latest) 下载两个安装包。
 2. 在 `chrome://extensions/` 开启开发者模式，加载解压后的 Chrome 扩展。
 3. 在 VS Code 扩展页右上角菜单选择“从 VSIX 安装…”，安装 VSIX 文件。
 4. 在 VS Code 中打开网页项目，并从状态栏启动映证。
